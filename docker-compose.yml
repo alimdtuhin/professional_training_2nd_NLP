@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chroma_db
+    ports:
+      - "8000:8000"
+    environment:
+      - ALLOW_RESET=TRUE
+      - CHROMA_SERVER_AUTH_CREDENTIALS=admin:admin  # Optional: for authentication
+      - CHROMA_SERVER_AUTH_PROVIDER=chromadb.auth.token.TokenAuthServerProvider
+      - CHROMA_SERVER_AUTH_TOKEN_TRANSPORT_HEADER=Authorization
+    volumes:
+      - chroma_data:/chroma/chroma
+    command: uvicorn chromadb.app:app --reload --workers 1 --host 0.0.0.0 --port 8000
+    networks:
+      - ml_network
+
+  ml_app:
+    build: .
+    container_name: ml_application
+    ports:
+      - "7860:7860"
+    depends_on:
+      - chromadb
+    environment:
+      - CHROMA_SERVER_HOST=http://chromadb:8000
+    volumes:
+      - ./data:/app/data
+      - ./chroma_db:/app/chroma_db
+    networks:
+      - ml_network
+    command: >
+      sh -c "sleep 10 && python app.py"
+
+networks:
+  ml_network:
+    driver: bridge
+
+volumes:
+  chroma_data:
+    driver: local
